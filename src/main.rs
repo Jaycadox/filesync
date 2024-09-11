@@ -1,6 +1,7 @@
 use core::str;
 use std::{
-    io::{Read, Seek, SeekFrom, Write},
+    fs::File,
+    io::{BufWriter, Read, Seek, SeekFrom, Write},
     net::{TcpListener, TcpStream, UdpSocket},
     time::Duration,
 };
@@ -47,7 +48,7 @@ fn main() {
         let mut len: i128 = file.seek(SeekFrom::End(0)).unwrap() as i128;
         file.seek(SeekFrom::Start(0)).unwrap();
 
-        let mut buf = vec![0; 1000_000_000];
+        let mut buf = vec![0; 10_000_000];
         while len > 0 {
             let read_count = file.read(&mut buf).unwrap();
             if read_count == 0 {
@@ -55,6 +56,7 @@ fn main() {
             }
             len -= read_count as i128;
             client.0.write_all(&buf[..read_count]).unwrap();
+            println!("Len = {len}");
         }
     } else {
         // Broadcast expression of interest
@@ -91,9 +93,21 @@ fn main() {
         let mut name = vec![0; size[0] as usize];
         server.read_exact(&mut name).unwrap();
         println!("downloading file: {}", str::from_utf8(&name[..]).unwrap());
-
-        let mut buff = Vec::new();
-        server.read_to_end(&mut buff).unwrap();
-        println!("done (len = {})", buff.len());
+        let file = File::create(str::from_utf8(&name[..]).unwrap()).unwrap();
+        let mut writer = BufWriter::new(file);
+        let mut buf = vec![0; 10_000_000];
+        let mut fsize: usize = 0;
+        loop {
+            let Ok(count) = server.read(&mut buf) else {
+                eprintln!("Error before EOF");
+                break;
+            };
+            if count == 0 {
+                break;
+            }
+            writer.write(&buf[..count]).unwrap();
+            fsize += count;
+        }
+        println!("done (len = {})", fsize);
     }
 }
