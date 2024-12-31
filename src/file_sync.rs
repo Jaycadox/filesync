@@ -30,7 +30,7 @@ pub fn next_message() -> Result<String> {
         .context("failed to bind message reader udp socket (0.0.0.0:6971)")?;
     let mut len_buf = [0u8; 8];
     let len = loop {
-        if udp.recv(&mut len_buf)? == 8 {
+        if udp.recv(&mut len_buf)? != 8 {
             continue;
         }
         let len = u64::from_be_bytes(len_buf);
