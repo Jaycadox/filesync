@@ -6,7 +6,7 @@ use file_sync::*;
 fn main() {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     if args.len() == 1 {
-        let file = std::fs::File::open(&args[0]).unwrap_or_else(|e| {
+        let file = File::open(&args[0]).unwrap_or_else(|e| {
             eprintln!("error: failed to open file: {}. {e}", &args[0]);
             std::process::exit(1);
         });
@@ -47,7 +47,7 @@ fn main() {
             std::process::exit(1);
         });
         let writer = BufWriter::new(file);
-        client.recieve(writer).unwrap_or_else(|e| {
+        client.receive(writer).unwrap_or_else(|e| {
             eprintln!("error: {e}");
             std::process::exit(1);
         });

@@ -23,7 +23,7 @@ impl FileSyncServer {
     pub fn broadcast() -> Result<Self> {
         // Start listening on UDP for "Expression of interest" broadcasts
         dbgln!("discovery: waiting for expression of interest...");
-        let udp = std::net::UdpSocket::bind("0.0.0.0:6967")
+        let udp = UdpSocket::bind("0.0.0.0:6967")
             .context("failed to bind server discovery udp socket (0.0.0.0:6967)")?;
         let mut eoi_buf = vec![0; 3];
         let source;
@@ -38,7 +38,7 @@ impl FileSyncServer {
                 break;
             }
         }
-        dbgln!("discovery: recieved expression of interest ({source:?})");
+        dbgln!("discovery: received expression of interest ({source:?})");
         Ok(Self {
             socket: udp,
             source,
@@ -65,11 +65,11 @@ impl FileSyncServer {
         let ack_buf = vec![b'A', b'C', b'K'];
         self.socket
             .send_to(&ack_buf, self.source)
-            .context("failed to send acklowledgement udp packet.")?;
+            .context("failed to send acknowledgement udp packet.")?;
 
         let mut client = server
             .accept()
-            .context("failed to send acklowledgement udp packet.")?;
+            .context("failed to send acknowledgement udp packet.")?;
         dbgln!("server: client connected ({:?})", client.1);
         dbgln!("transfer: sending headers for {name}...");
 
@@ -177,7 +177,7 @@ impl FileSyncClient {
             eprintln!("error: failed to connect to tcp transfer server on {server:?}. {e}");
             std::process::exit(1);
         });
-        dbgln!("client: recieving headers for file...");
+        dbgln!("client: receiving headers for file...");
         // Firstly, we are expecting the size of the file name
         let mut size = [0; 1];
         server
@@ -209,7 +209,7 @@ impl FileSyncClient {
         (&self.name, self.size as usize)
     }
 
-    pub fn recieve(&mut self, mut writer: impl Write) -> Result<()> {
+    pub fn receive(&mut self, mut writer: impl Write) -> Result<()> {
         let mut buf = vec![0; 10_000_000];
         let mut fsize: usize = 0;
 
