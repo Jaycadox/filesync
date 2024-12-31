@@ -1,10 +1,13 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use core::str;
 use std::{
     io::{Read, Seek, SeekFrom, Write},
     net::{SocketAddr, TcpListener, TcpStream, UdpSocket},
     time::{Duration, SystemTime},
 };
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::SeqCst;
 
 #[macro_export]
 macro_rules! dbgln {
@@ -52,6 +55,7 @@ pub fn next_message() -> Result<String> {
 pub struct FileSyncServer {
     socket: UdpSocket,
     source: SocketAddr,
+    pub stop: Arc<AtomicBool>,
 }
 
 impl FileSyncServer {
@@ -77,6 +81,7 @@ impl FileSyncServer {
         Ok(Self {
             socket: udp,
             source,
+            stop: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -138,6 +143,10 @@ impl FileSyncServer {
         let mut last_notified = SystemTime::now();
 
         while len > 0 {
+            if self.stop.load(SeqCst) {
+                return Err(anyhow!("Cancelled"));
+            }
+
             let read_count = stream
                 .read(&mut buf)
                 .context("failed to read chunk from file.")?;
@@ -176,10 +185,15 @@ pub struct FileSyncClient {
     server: TcpStream,
     name: String,
     size: i128,
+    pub stop: Arc<AtomicBool>,
 }
 
 impl FileSyncClient {
     pub fn broadcast() -> Result<Self> {
+        Self::broadcast_minimal_timeout(false)
+    }
+
+    pub fn broadcast_minimal_timeout(minimal_timeout: bool) -> Result<Self> {
         // Broadcast expression of interest
         dbgln!("discovery: broadcasting expression of interest...");
 
@@ -196,6 +210,9 @@ impl FileSyncClient {
                 .expect("should be able to set udp read timeout");
 
             let Ok((count, sender)) = udp.recv_from(&mut ack_buf) else {
+                if minimal_timeout {
+                    return Err(anyhow!("Timed out"));
+                }
                 continue;
             };
 
@@ -237,6 +254,7 @@ impl FileSyncClient {
             server,
             name: name.to_string(),
             size,
+            stop: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -250,6 +268,10 @@ impl FileSyncClient {
 
         let mut last_notified = SystemTime::now();
         loop {
+            if self.stop.load(SeqCst) {
+                return Err(anyhow!("Cancelled"));
+            }
+
             let count = self.server.read(&mut buf).context("error before EOF")?;
             if count == 0 {
                 break;
