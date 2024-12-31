@@ -14,6 +14,37 @@ macro_rules! dbgln {
     };
 }
 
+pub fn send_message(msg: &str) -> Result<()> {
+    let mut udp = UdpSocket::bind("0.0.0.0:6970")
+        .context("failed to bind send message broadcast udp socket (0.0.0.0:6970)")?;
+    udp.set_broadcast(true)?;
+    udp.send_to(&msg.len().to_be_bytes(), "255.255.255.255:6971")
+        .context("failed to send custom message.")?;
+    udp.send_to(msg.as_bytes(), "255.255.255.255:6971")
+        .context("failed to send custom message.")?;
+    Ok(())
+}
+
+pub fn next_message() -> Result<String> {
+    let mut udp = UdpSocket::bind("0.0.0.0:6971")
+        .context("failed to bind message reader udp socket (0.0.0.0:6971)")?;
+    let mut len_buf = [0u8; 8];
+    loop {
+        if udp.recv(&mut len_buf)? == 8 {
+            break;
+        }
+    }
+    let len = u64::from_be_bytes(len_buf);
+    let mut buf = vec![0u8; len as usize];
+    loop {
+        if udp.recv(&mut buf)? == len as usize {
+            break;
+        }
+    }
+    let msg_str = str::from_utf8(&buf)?.to_string();
+    Ok(msg_str)
+}
+
 pub struct FileSyncServer {
     socket: UdpSocket,
     source: SocketAddr,
