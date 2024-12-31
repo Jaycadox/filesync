@@ -29,12 +29,16 @@ pub fn next_message() -> Result<String> {
     let mut udp = UdpSocket::bind("0.0.0.0:6971")
         .context("failed to bind message reader udp socket (0.0.0.0:6971)")?;
     let mut len_buf = [0u8; 8];
-    loop {
+    let len = loop {
         if udp.recv(&mut len_buf)? == 8 {
-            break;
+            continue;
         }
-    }
-    let len = u64::from_be_bytes(len_buf);
+        let len = u64::from_be_bytes(len_buf);
+        if len <= 2048 {
+            break len;
+        }
+    };
+
     let mut buf = vec![0u8; len as usize];
     loop {
         if udp.recv(&mut buf)? == len as usize {
